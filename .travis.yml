@@ -1,28 +1,25 @@
 sudo: required
 
-env:
-  - ARCH_TRAVIS_CLEAN_CHROOT=1
+services:
+- docker
 
-language: c
-
-compiler:
-  - gcc
-  - clang
-
-arch:
+archlinux:
   repos:
-    - archlinuxfr=http://repo.archlinux.fr/$arch
+  - papyros=http://dash.papyros.io/repos/$repo/$arch
   packages:
-    - procps-ng
-    - reflector
-    # aur
-    - screenfetch-git
+  # pacman packages
+  - python
+  - perl
+  # aur packages
+  - go-git
+  # packages from papyros repo
+  - papyros-shell
+  mount:
+  - ~/.pkg-cache:/var/cache/pacman/pkg
+  before_install:
+  - "sudo ln -s /dev/null /etc/pacman.d/hooks/package-cleanup.hook"
   script:
-    - "sudo screenfetch"
-    - "reflector --verbose -l 20 --sort rate -p https"
-    - "echo $CC"
-    - "touch test_file"
+  - ls -l
 
 script:
-  - "bash ./arch-travis.sh"
-  - "ls -l"
+- "curl -s https://raw.githubusercontent.com/alxhoff/arch-travis/master/arch-travis.sh | bash"
