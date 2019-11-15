@@ -14,7 +14,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-
 # Script for setting up and running a travis-ci build in an up to date
 # Arch Linux chroot
 
@@ -44,7 +43,6 @@ GOROOT=""
 # https://github.com/rmarquis/pacaur/issues/637
 export EDITOR=false
 
-
 # default packages
 default_packages=("base-devel" "git")
 
@@ -61,7 +59,7 @@ get_base_archive() {
 
   for mirror in "${mirrors[@]}"; do
     for date in "${months[@]}"; do
-        echo $date
+      echo $date
       for i in {1..15}; do
         local iso_date="$date"
         if [ "$i" -lt 10 ]; then
@@ -74,7 +72,7 @@ get_base_archive() {
         local url="$mirror/iso/$iso_date/$ARCH_TRAVIS_ROOT_ARCHIVE"
 
         if [ -f "$ARCH_TRAVIS_ROOT_ARCHIVE" ]; then
-            return
+          return
         fi
 
         echo $url
@@ -172,8 +170,7 @@ setup_chroot() {
   # add custom repos
   add_repositories
 
-  # setup pacaur for AUR packages
-  setup_pacaur
+  setup_yaourt
 }
 
 # add custom repositories to pacman.conf
@@ -181,11 +178,11 @@ add_repositories() {
   if [ ${#CONFIG_REPOS[@]} -gt 0 ]; then
     for r in "${CONFIG_REPOS[@]}"; do
       local splitarr=(${r//=/ })
-      ((repo_line+=1))
+      ((repo_line += 1))
       as_root "sed -i '${repo_line}i[${splitarr[0]}]' $ARCH_TRAVIS_CHROOT/etc/pacman.conf"
-      ((repo_line+=1))
+      ((repo_line += 1))
       as_root "sed -i '${repo_line}iServer = ${splitarr[1]}\n' $ARCH_TRAVIS_CHROOT/etc/pacman.conf"
-      ((repo_line+=1))
+      ((repo_line += 1))
     done
 
     # update repos
@@ -255,31 +252,19 @@ run_build_script() {
   fi
 }
 
-# setup pacaur
-setup_pacaur() {
-  # Check if pacaur is available in the added repos
-  if _chroot_as_normal "pacman -Si pacaur &> /dev/null"; then
-    chroot_as_root "pacman -S --noconfirm pacaur"
-  else
-    local cowerarchive="cower.tar.gz"
-    local aururl="https://aur.archlinux.org/cgit/aur.git/snapshot/"
-    # install cower
-    as_normal "curl -O $aururl/$cowerarchive"
-    as_normal "tar xf $cowerarchive"
-    chroot_as_normal "cd cower && makepkg -is --skippgpcheck --noconfirm"
-    as_root "rm -r cower"
-    as_normal "rm $cowerarchive"
-    # install pacaur
-    chroot_as_normal "cower -dd pacaur"
-    chroot_as_normal "cd pacaur && makepkg -is --noconfirm"
-    chroot_as_normal "rm -rf pacaur"
-  fi
+setup_yaourt() {
+  as_normal "git clone https://aur.archlinux.org/package-query.git"
+  chroot_as_normal "cd package-query && makepkg -si --skippgpcheck --noconfirm"
+  as_normal "cd .."
+  as_normal "git clone https://aur.archlinux.org/yaourt.git"
+  chroot_as_normal "cd yaourt && makepkg -si --skippgpcheck --noconfirm"
+  as_normal "cd .."
 }
 
-# install package through pacaur
-_pacaur() {
-  local pacaur="pacaur -S $@ --noconfirm --noedit"
-  chroot_as_normal "$pacaur"
+# install package through yaourt
+_yaourt() {
+  local yaourt="yaourt $@ --noconfirm"
+  chroot_as_normal "$yaourt"
 }
 
 # takedown chroot
@@ -305,12 +290,12 @@ travis_yml() {
 }
 
 read_config() {
-    local old_ifs=$IFS
-    IFS=$'\n'
-    CONFIG_BUILD_SCRIPTS=($(travis_yml arch script))
-    CONFIG_PACKAGES=($(travis_yml arch packages))
-    CONFIG_REPOS=($(travis_yml arch repos))
-    IFS=$old_ifs
+  local old_ifs=$IFS
+  IFS=$'\n'
+  CONFIG_BUILD_SCRIPTS=($(travis_yml arch script))
+  CONFIG_PACKAGES=($(travis_yml arch packages))
+  CONFIG_REPOS=($(travis_yml arch repos))
+  IFS=$old_ifs
 }
 
 # run build scripts defined in .travis.yml
@@ -322,21 +307,21 @@ build_scripts() {
   else
     echo "No build scripts defined"
     takedown_chroot
-    exit 1
+    exit 0
   fi
 }
 
 # install packages defined in .travis.yml
 install_packages() {
   for package in "${CONFIG_PACKAGES[@]}"; do
-    _pacaur $package
+    _yaourt $package
   done
 }
 
 # install custom compiler if CC != gcc
 install_c_compiler() {
   if [ "$TRAVIS_CC" != "gcc" ]; then
-    _pacaur "$TRAVIS_CC"
+    _yaourt "$TRAVIS_CC"
   fi
 }
 
